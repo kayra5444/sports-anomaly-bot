@@ -64,6 +64,7 @@ async def send_telegram_alert(context, item):
 
 
 async def tara_sofascore_multi_sport(client, simdiki_zaman):
+    async def tara_sofascore_multi_sport(client, simdiki_zaman):
     anomaliler = []
     spor_sayilari = {}
     
@@ -74,12 +75,20 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
         "volleyball": "🏐 VOLEYBOL"
     }
 
+    # Sofascore engeline takılmamak için güncellenmiş tarayıcı kimliği
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Origin": "https://www.sofascore.com",
-        "Referer": "https://www.sofascore.com/"
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Referer": "https://www.sofascore.com/",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site"
     }
 
     toplam_mac = 0
@@ -88,8 +97,8 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
         count = 0
         try:
             res = await client.get(url, headers=headers)
-            print(f"SPOR: {sport_slug} | HTTP: {res.status_code}", flush=True)
-            print(f"YANIT: {res.text[:300]}", flush=True)
+            print(f"SPOR: {sport_slug} | HTTP: {res.status_code}")
+            
             if res.status_code == 200:
                 data = res.json()
                 events = data.get("events", [])
@@ -101,7 +110,6 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
                     away_score = ev.get("awayScore", {}).get("current")
                     start_timestamp = ev.get("startTimestamp")
 
-                    # Canlı olan ve skoru bulunan tüm maçları doğrudan yakala
                     if home_score is not None and away_score is not None and start_timestamp:
                         match_time = datetime.fromtimestamp(start_timestamp) + timedelta(hours=3)
                         
