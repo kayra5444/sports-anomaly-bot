@@ -41,7 +41,7 @@ async def tara_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     IS_SCANNING = True
     await update.message.reply_text(
-        "🚀 **Çoklu Spor Anomali Taraması Başlatıldı!**\n"
+        "🚀 **Çoklu Spor Canlı Maç Taraması Başlatıldı!**\n"
         "⚽ Futbol, 🎾 Tenis, 🏀 Basketbol, 🏐 Voleybol taranıyor..."
     )
 
@@ -50,12 +50,12 @@ async def tara_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_telegram_alert(context, item):
     text = (
-        f"🚨 **ANOMALİ MAÇ YAKALANDI!**\n\n"
+        f"🚨 **CANLI MAÇ YAKALANDI!**\n\n"
         f"📌 **Kaynak:** {item['kaynak']}\n"
         f"🏆 **Spor:** {item['spor']}\n"
         f"⚔️ **Maç:** {item['ev']} vs {item['dep']}\n"
-        f"⏰ **Planlanan Saat:** {item['saat']} (Türkiye Saati)\n"
-        f"📊 **Girilen Skor:** {item['skor']}"
+        f"⏰ **Başlama Saati:** {item['saat']} (Türkiye Saati)\n"
+        f"📊 **Anlık Skor:** {item['skor']}"
     )
     try:
         await context.bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
@@ -99,18 +99,18 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
                     away_score = ev.get("awayScore", {}).get("current")
                     start_timestamp = ev.get("startTimestamp")
 
+                    # Canlı olan ve skoru bulunan tüm maçları doğrudan yakala
                     if home_score is not None and away_score is not None and start_timestamp:
                         match_time = datetime.fromtimestamp(start_timestamp) + timedelta(hours=3)
                         
-                        if match_time > simdiki_zaman:
-                            anomaliler.append({
-                                "kaynak": "Sofascore API",
-                                "spor": sport_name,
-                                "ev": ev.get("homeTeam", {}).get("name", "Ev Sahibi"),
-                                "dep": ev.get("awayTeam", {}).get("name", "Deplasman"),
-                                "saat": match_time.strftime("%H:%M"),
-                                "skor": f"{home_score} - {away_score}"
-                            })
+                        anomaliler.append({
+                            "kaynak": "Sofascore API",
+                            "spor": sport_name,
+                            "ev": ev.get("homeTeam", {}).get("name", "Ev Sahibi"),
+                            "dep": ev.get("awayTeam", {}).get("name", "Deplasman"),
+                            "saat": match_time.strftime("%H:%M"),
+                            "skor": f"{home_score} - {away_score}"
+                        })
         except Exception as e:
             print(f"Sofascore {sport_name} Hatası: {e}")
         
@@ -124,7 +124,6 @@ async def run_scanner_loop(context):
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         while IS_SCANNING:
-            # Güncel ve hatasız Türkiye saati (UTC + 3)
             simdiki_zaman = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=3)
 
             sofa_anom, toplam_mac, spor_sayilari = await tara_sofascore_multi_sport(client, simdiki_zaman)
@@ -141,7 +140,7 @@ async def run_scanner_loop(context):
                 f"• {spor_sayilari.get('🏀 BASKETBOL', 0)} Basketbol\n"
                 f"• {spor_sayilari.get('🏐 VOLEYBOL', 0)} Voleybol\n\n"
                 f"📈 **Toplam Taranan:** {toplam_mac} müsabaka\n"
-                f"🚨 **Yakalanan Anomali:** {len(sofa_anom)} adet"
+                f"🚨 **Yakalanan Maç/Anomali:** {len(sofa_anom)} adet"
             )
 
             try:
