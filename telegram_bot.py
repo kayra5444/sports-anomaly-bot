@@ -1,11 +1,11 @@
-import os
 import asyncio
 from datetime import datetime, timedelta
+import httpx
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.request import HTTPXRequest
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN Render ortamında bulunamadı")
+BOT_TOKEN = "8635865754:AAHKzhX7m06HrMjlZI9llpspjcGXfObImsU"
 CHAT_ID = "1127823264"
 
 IS_SCANNING = False
