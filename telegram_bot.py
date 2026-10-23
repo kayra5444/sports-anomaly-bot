@@ -66,7 +66,7 @@ async def send_telegram_alert(context, item):
 API_SPORTS_KEY = "21db1cc08f22993c3817d143a2b20c73"
 API_SPORTS_KEY = "21db1cc08f22993c3817d143a2b20c73"
 
-# API:
+async def tara_espn_multi_sport(client):
     anomaliler = []
     spor_sayilari = {}
 
