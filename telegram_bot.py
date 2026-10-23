@@ -1,12 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta
-import re
 import httpx
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.request import HTTPXRequest
 
-BOT_TOKEN = "8635865754:AAHB8aMRp_G2oKsX7YBYOUmAWwwdecTCuSM"
+BOT_TOKEN = "8635865754:AAHB8amRp_G2oKsX7YBYOUmAWwwdecTCuSM"
 CHAT_ID = "1127823264"
 
 IS_SCANNING = False
@@ -64,12 +63,11 @@ async def send_telegram_alert(context, item):
         pass
 
 
-# Çoklu Spor Destekli Sofascore API Taraması (Saat Düzeltmeli)
+# Çoklu Spor Taraması ve Detaylı Sayım
 async def tara_sofascore_multi_sport(client, simdiki_zaman):
     anomaliler = []
-    toplam_mac = 0
+    spor_sayilari = {}
     
-    # Spor slug'ları ve isimleri
     sports = {
         "football": "⚽ FUTBOL",
         "tennis": "🎾 TENİS",
@@ -85,14 +83,17 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
         "Referer": "https://www.sofascore.com/"
     }
 
+    toplam_mac = 0
     for sport_slug, sport_name in sports.items():
         url = f"https://api.sofascore.com/api/v1/sport/{sport_slug}/events/live"
+        count = 0
         try:
             res = await client.get(url, headers=headers)
             if res.status_code == 200:
                 data = res.json()
                 events = data.get("events", [])
-                toplam_mac += len(events)
+                count = len(events)
+                toplam_mac += count
 
                 for ev in events:
                     home_score = ev.get("homeScore", {}).get("current")
@@ -100,10 +101,8 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
                     start_timestamp = ev.get("startTimestamp")
 
                     if home_score is not None and away_score is not None and start_timestamp:
-                        # UTC saatini Türkiye saatine (+3 saat) çeviriyoruz
                         match_time = datetime.fromtimestamp(start_timestamp) + timedelta(hours=3)
                         
-                        # İleriki saate skor girilmişse anomali
                         if match_time > simdiki_zaman:
                             anomaliler.append({
                                 "kaynak": "Sofascore API",
@@ -115,8 +114,10 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
                             })
         except Exception as e:
             print(f"Sofascore {sport_name} Hatası: {e}")
+        
+        spor_sayilari[sport_name] = count
 
-    return anomaliler, toplam_mac
+    return anomaliler, toplam_mac, spor_sayilari
 
 
 async def run_scanner_loop(context):
@@ -124,10 +125,10 @@ async def run_scanner_loop(context):
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         while IS_SCANNING:
-            simdiki_zaman = datetime.now()
+            # Türkiye saati (UTC + 3)
+            simdiki_zaman = datetime.utcnow() + timedelta(hours=3)
 
-            # 4 Spor dalını tara
-            sofa_anom, toplam_mac = await tara_sofascore_multi_sport(client, simdiki_zaman)
+            sofa_anom, toplam_mac, spor_sayilari = await tara_sofascore_multi_sport(client, simdiki_zaman)
 
             if sofa_anom:
                 for item in sofa_anom:
@@ -135,7 +136,12 @@ async def run_scanner_loop(context):
 
             rapor_metni = (
                 f"✅ **Tarama Döngüsü Tamamlandı!** ({simdiki_zaman.strftime('%H:%M')})\n\n"
-                f"📊 **Taranan Canlı Maç / Müsabaka:** {toplam_mac}\n"
+                f"📊 **Branşlara Göre Canlı Maçlar:**\n"
+                f"• {spor_sayilari.get('⚽ FUTBOL', 0)} Futbol\n"
+                f"• {spor_sayilari.get('🎾 TENİS', 0)} Tenis\n"
+                f"• {spor_sayilari.get('🏀 BASKETBOL', 0)} Basketbol\n"
+                f"• {spor_sayilari.get('🏐 VOLEYBOL', 0)} Voleybol\n\n"
+                f"📈 **Toplam Taranan:** {toplam_mac} müsabaka\n"
                 f"🚨 **Yakalanan Anomali:** {len(sofa_anom)} adet"
             )
 
