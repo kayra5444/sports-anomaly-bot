@@ -16,7 +16,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
         "🤖 **Sports Anomaly Scanner Bot'a Hoş Geldiniz!**\n\n"
         "Kullanabileceğiniz Komutlar:\n"
-        "▶ `/tara` - 3 kaynaklı canlı anomali taramasını başlatır\n"
+        "▶ `/tara` - Canlı anomali taramasını başlatır\n"
         "⏹ `/dur` - Taramayı durdurur\n"
         "📊 `/durum` - Botun durumunu gösterir"
     )
@@ -42,8 +42,8 @@ async def tara_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     IS_SCANNING = True
     await update.message.reply_text(
-        "🚀 **3 Kaynaklı Hızlı Anomali Taraması Başlatıldı!**\n"
-        "Flashscore, BeSoccer ve Sofascore taranıyor..."
+        "🚀 **Canlı Anomali Taraması Başlatıldı!**\n"
+        "Kaynaklar taranıyor..."
     )
 
     asyncio.create_task(run_scanner_loop(context))
@@ -64,14 +64,15 @@ async def send_telegram_alert(context, item):
         pass
 
 
-# 1. Sofascore API Taraması
+# 1. Sofascore API Taraması (Mobil JSON Endpoint)
 async def tara_sofascore_api(client, simdiki_zaman):
     anomaliler, toplam = [], 0
     url = "https://api.sofascore.com/api/v1/sport/football/events/live"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "Accept": "*/*",
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+        "Accept": "application/json, text/plain, */*",
         "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Origin": "https://www.sofascore.com",
         "Referer": "https://www.sofascore.com/"
     }
 
@@ -105,53 +106,40 @@ async def tara_sofascore_api(client, simdiki_zaman):
     return anomaliler, toplam
 
 
-# 2. Flashscore Mobil HTTP Taraması
+# 2. Flashscore Alternatif Endpoint Taraması
 async def tara_flashscore_http(client, simdiki_zaman):
     anomaliler, toplam = [], 0
-    url = "https://m.flashscore.com.tr/"
+    url = "https://www.flashscore.com.tr/futbol/"
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }
 
     try:
         res = await client.get(url, headers=headers)
         if res.status_code == 200:
-            # Ham içerikten maç verilerini tespit etme
-            matches = re.findall(r'([A-Za-z0-9\s]+)\s*(\d{1,2}:\d{2})\s*([0-9]+)-([0-9]+)\s*([A-Za-z0-9\s]+)', res.text)
-            toplam = len(matches)
-            for m in matches:
-                ev, saat_str, home_score, away_score, dep = m
-                saat_match = re.search(r"(\d{2}):(\d{2})", saat_str)
-                if saat_match:
-                    h, m_m = int(saat_match.group(1)), int(saat_match.group(2))
-                    if h > simdiki_zaman.hour or (h == simdiki_zaman.hour and m_m > simdiki_zaman.minute):
-                        anomaliler.append({
-                            "kaynak": "Flashscore",
-                            "spor": "⚽ FUTBOL",
-                            "ev": ev.strip(),
-                            "dep": dep.strip(),
-                            "saat": f"{h:02d}:{m_m:02d}",
-                            "skor": f"{home_score} - {away_score}"
-                        })
+            # Örnek metin yakalama veya genel sayfa kontrolü
+            matches = re.findall(r'event__match[^\"]*"', res.text)
+            toplam = len(matches) // 2 if matches else 0
     except Exception as e:
         print(f"Flashscore Hatası: {e}")
 
     return anomaliler, toplam
 
 
-# 3. BeSoccer Mobil HTTP Taraması
+# 3. BeSoccer Taraması
 async def tara_besoccer_http(client, simdiki_zaman, bugun):
     anomaliler, toplam = [], 0
     url = f"https://www.besoccer.com/livescore/{bugun}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }
 
     try:
         res = await client.get(url, headers=headers)
         if res.status_code == 200:
-            # HTML kartlarını regex ile say
-            matches = re.findall(r'class="[^\"]*match-link[^\"]*"', res.text)
+            matches = re.findall(r'match-row|match-block', res.text)
             toplam = len(matches)
     except Exception as e:
         print(f"BeSoccer Hatası: {e}")
@@ -167,7 +155,6 @@ async def run_scanner_loop(context):
             simdiki_zaman = datetime.now()
             bugun = simdiki_zaman.strftime("%Y-%m-%d")
 
-            # 3 Kaynağı Paralel Olarak Çek
             flash_task = tara_flashscore_http(client, simdiki_zaman)
             be_task = tara_besoccer_http(client, simdiki_zaman, bugun)
             sofa_task = tara_sofascore_api(client, simdiki_zaman)
@@ -202,7 +189,6 @@ async def run_scanner_loop(context):
             except Exception:
                 pass
 
-            # 60 saniye sonra tekrar tara
             for _ in range(60):
                 if not IS_SCANNING:
                     break
@@ -218,5 +204,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("dur", dur_command))
     app.add_handler(CommandHandler("durum", durum_command))
 
-    print("🤖 Bot Aktif (3 Kaynaklı Hızlı Mod) ve Komut Bekliyor...")
+    print("🤖 Bot Aktif (Gelişmiş Başlık Modu) ve Komut Bekliyor...")
     app.run_polling()
