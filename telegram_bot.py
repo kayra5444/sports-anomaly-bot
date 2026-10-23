@@ -117,6 +117,34 @@ API:
             toplam_mac += count
 
             for mac in maclar:
+                                # Daha önce bitmiş maçları listeleme
+                if spor_name == "⚽ FUTBOL":
+                    mac_durumu = (
+                        mac.get("fixture", {})
+                        .get("status", {})
+                        .get("short", "")
+                    )
+                    if mac_durumu in {"FT", "AET", "PEN", "AWD", "WO"}:
+                        continue
+
+                elif spor_name == "🏀 BASKETBOL":
+                    mac_durumu = (
+                        mac.get("status", {})
+                        .get("short", "")
+                    )
+                    if mac_durumu in {"FT", "AOT", "3", 3}:
+                        continue
+
+                elif spor_name == "🏐 VOLEYBOL":
+                    mac_durumu = (
+                        mac.get("game", {})
+                        .get("status", {})
+                        .get("short", "")
+                    )
+                    if str(mac_durumu).lower() in {
+                        "ft", "finished", "match finished", "ended"
+                    }:
+                        continue
                 if spor_name == "⚽ FUTBOL":
                     fixture = mac.get("fixture", {})
                     teams = mac.get("teams", {})
