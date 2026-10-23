@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.request import HTTPXRequest
 
-BOT_TOKEN = "8635865754:AAEws3qea0_t8R7RvclP5e29imlZpmuNpnw"
+BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = "1127823264"
 
 IS_SCANNING = False
