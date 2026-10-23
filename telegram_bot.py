@@ -64,7 +64,6 @@ async def send_telegram_alert(context, item):
 
 
 async def tara_sofascore_multi_sport(client, simdiki_zaman):
-    async def tara_sofascore_multi_sport(client, simdiki_zaman):
     anomaliler = []
     spor_sayilari = {}
     
@@ -75,7 +74,6 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
         "volleyball": "🏐 VOLEYBOL"
     }
 
-    # Sofascore engeline takılmamak için güncellenmiş tarayıcı kimliği
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
@@ -97,8 +95,8 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
         count = 0
         try:
             res = await client.get(url, headers=headers)
-            print(f"SPOR: {sport_slug} | HTTP: {res.status_code}")
-            
+            print(f"SPOR: {sport_slug} | HTTP: {res.status_code}", flush=True)
+            print(f"YANIT: {res.text[:300]}", flush=True)
             if res.status_code == 200:
                 data = res.json()
                 events = data.get("events", [])
