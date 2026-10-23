@@ -63,82 +63,148 @@ async def send_telegram_alert(context, item):
         pass
 
 
+API_SPORTS_KEY = "21db1cc08f22993c3817d143a2b20c73"
+API_SPORTS_KEY = "21db1cc08f22993c3817d143a2b20c73"
+
 async def tara_espn_multi_sport(client):
     anomaliler = []
     spor_sayilari = {}
-    
-    endpoints = {
-        "soccer/eng.1": "⚽ FUTBOL",
-        "basketball/nba": "🏀 BASKETBOL",
-        "tennis/atp": "🎾 TENİS",
-        "volleyball": "🏐 VOLEYBOL"
-    }
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json"
+    headers = {"x-apisports-key": API_SPORTS_KEY}
+    bugun = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    endpoints = {
+        "⚽ FUTBOL": {
+            "url": "https://v3.football.api-sports.io/fixtures",
+            "params": {"date": bugun, "timezone": "Europe/Istanbul"}
+        },
+        "🏀 BASKETBOL": {
+            "url": "https://v1.basketball.api-sports.io/games",
+            "params": {"date": bugun, "timezone": "Europe/Istanbul"}
+        },
+        "🏐 VOLEYBOL": {
+            "url": "https://v1.volleyball.api-sports.io/games",
+            "params": {"date": bugun, "timezone": "Europe/Istanbul"}
+        }
     }
 
     toplam_mac = 0
-    for sport_path, sport_name in endpoints.items():
-        url = f"https://site.api.espn.com/apis/site/v2/sports/{sport_path}/scoreboard"
+
+    for spor_name, endpoint in endpoints.items():
         count = 0
+
         try:
-            res = await client.get(url, headers=headers)
-            
-            if res.status_code == 200:
-                data = res.json()
-                events = data.get("events", [])
-                count = len(events)
-                toplam_mac += count
+            res = await client.get(
+                endpoint["url"],
+                headers=headers,
+                params=endpoint["params"]
+            )
 
-                for ev in events:
-                    # Maç tarihini alıp Türkiye saatine (UTC+3) çevirelim
-                    date_str = ev.get("date")
-                    match_saat = "Planlanıyor"
-                    if date_str:
-                        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                        dt_tr = dt + timedelta(hours=3)
-                        match_saat = dt_tr.strftime("%H:%M")
+            if res.status_code != 200:
+                print(f"{spor_name} HTTP hatası: {res.status_code} - {res.text[:300]}")
+                spor_sayilari[spor_name] = 0
+                continue
 
-                    status_type = ev.get("status", {}).get("type", {}).get("state")
-                    
-                    competitions = ev.get("competitions", [{}])[0]
-                    competitors = competitions.get("competitors", [])
-                    
-                    home_team, away_team, home_score, away_score = "Ev Sahibi", "Deplasman", "0", "0"
-                    for comp in competitors:
-                        if comp.get("homeAway") == "home":
-                            home_team = comp.get("team", {}).get("displayName", "Ev Sahibi")
-                            home_score = comp.get("score", "0")
-                        elif comp.get("homeAway") == "away":
-                            away_team = comp.get("team", {}).get("displayName", "Deplasman")
-                            away_score = comp.get("score", "0")
+            data = res.json()
 
-                    durum_metni = "Başlamadı"
-                    if status_type == "in":
-                        durum_metni = f"🔴 CANLI ({home_score} - {away_score})"
-                    elif status_type == "post":
-                        durum_metni = f"🏁 Bitti ({home_score} - {away_score})"
-                    else:
-                        durum_metni = "⏳ Başlayacak"
+            if data.get("errors"):
+                print(f"{spor_name} API hatası: {data['errors']}")
+                spor_sayilari[spor_name] = 0
+                continue
 
-                    anomaliler.append({
-                        "kaynak": "ESPN API",
-                        "spor": sport_name,
-                        "ev": home_team,
-                        "dep": away_team,
-                        "saat": match_saat,
-                        "skor": durum_metni
-                    })
+            maclar = data.get("response", [])
+            count = len(maclar)
+            toplam_mac += count
+
+            for mac in maclar:
+                if spor_name == "⚽ FUTBOL":
+                    fixture = mac.get("fixture", {})
+                    teams = mac.get("teams", {})
+                    goals = mac.get("goals", {})
+                    status = fixture.get("status", {})
+
+                    ev = teams.get("home", {}).get("name", "Ev Sahibi")
+                    dep = teams.get("away", {}).get("name", "Deplasman")
+                    ev_skor = goals.get("home")
+                    dep_skor = goals.get("away")
+                    durum = status.get("short", "")
+                    tarih = fixture.get("date", "")
+
+                else:
+                    game = mac.get("game", {})
+                    teams = mac.get("teams", {})
+                    scores = mac.get("scores", {})
+                    status_data = game.get("status", {})
+
+                    ev_data = teams.get("home", {})
+                    dep_data = teams.get("away", {})
+
+                    ev = ev_data.get("name", "Ev Sahibi")
+                    dep = dep_data.get("name", "Deplasman")
+
+                    ev_score_data = scores.get("home", {})
+                    dep_score_data = scores.get("away", {})
+
+                    ev_skor = ev_score_data.get("total") if isinstance(ev_score_data, dict) else ev_score_data
+                    dep_skor = dep_score_data.get("total") if isinstance(dep_score_data, dict) else dep_score_data
+
+                    durum = status_data.get("short", "")
+                    tarih = game.get("date", "")
+
+                match_saat = "Bilinmiyor"
+
+                if tarih:
+                    try:
+                        dt = datetime.fromisoformat(tarih.replace("Z", "+00:00"))
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        match_saat = dt.astimezone().strftime("%H:%M")
+                    except (ValueError, TypeError):
+                        pass
+
+                canli_durumlar = {
+                    "1H", "2H", "HT", "ET", "BT", "P", "LIVE",
+                    "Q1", "Q2", "Q3", "Q4", "OT",
+                    "IN1", "IN2", "IN3", "IN4", "IN5",
+                    "IN6", "IN7", "IN8", "IN9",
+                    "P1", "P2", "P3", "PT"
+                }
+
+                biten_durumlar = {"FT", "AET", "PEN", "AOT", "AP"}
+
+                skor = (
+                    f"{ev_skor if ev_skor is not None else 0} - "
+                    f"{dep_skor if dep_skor is not None else 0}"
+                )
+
+                if durum in canli_durumlar:
+                    durum_metni = f"🔴 CANLI ({skor})"
+                elif durum in biten_durumlar:
+                    durum_metni = f"🏁 Bitti ({skor})"
+                elif durum == "NS":
+                    durum_metni = "⏳ Başlayacak"
+                else:
+                    durum_metni = f"📌 {durum or 'Durum bilinmiyor'} ({skor})"
+
+                anomaliler.append({
+                    "kaynak": "API-Sports",
+                    "spor": spor_name,
+                    "ev": ev,
+                    "dep": dep,
+                    "saat": match_saat,
+                    "skor": durum_metni
+                })
+
+            print(f"{spor_name}: {count} maç bulundu.")
+
         except Exception as e:
-            print(f"ESPN {sport_name} Hatası: {e}")
-        
-        spor_sayilari[sport_name] = count
+            print(f"{spor_name} bağlantı hatası: {e}")
+
+        spor_sayilari[spor_name] = count
+
+    spor_sayilari["🎾 TENİS"] = 0
 
     return anomaliler, toplam_mac, spor_sayilari
-
-
 async def run_scanner_loop(context):
     global IS_SCANNING
 
