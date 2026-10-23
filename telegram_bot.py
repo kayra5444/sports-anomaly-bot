@@ -13,9 +13,9 @@ IS_SCANNING = False
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "🤖 **Sports Anomaly Scanner Bot (ESPN Altyapısı) ile Aktif!**\n\n"
+        "🤖 **Sports Anomaly Scanner Bot (Program Modu) Aktif!**\n\n"
         "Kullanabileceğiniz Komutlar:\n"
-        "▶ `/tara` - Futbol, Tenis, Basketbol ve Voleybol taramasını başlatır\n"
+        "▶ `/tara` - Günün maç programını ve fikstürünü tarar\n"
         "⏹ `/dur` - Taramayı durdurur\n"
         "📊 `/durum` - Botun durumunu gösterir"
     )
@@ -41,7 +41,7 @@ async def tara_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     IS_SCANNING = True
     await update.message.reply_text(
-        "🚀 **ESPN Üzerinden Çoklu Spor Taraması Başlatıldı!**\n"
+        "🚀 **Günün Maç Programı ve Fikstür Taraması Başlatıldı!**\n"
         "⚽ Futbol, 🎾 Tenis, 🏀 Basketbol, 🏐 Voleybol taranıyor..."
     )
 
@@ -50,12 +50,12 @@ async def tara_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_telegram_alert(context, item):
     text = (
-        f"🚨 **CANLI MAÇ YAKALANDI!**\n\n"
+        f"📅 **MAÇ PROGRAMI / BİLGİSİ**\n\n"
         f"📌 **Kaynak:** {item['kaynak']}\n"
         f"🏆 **Spor:** {item['spor']}\n"
         f"⚔️ **Maç:** {item['ev']} vs {item['dep']}\n"
-        f"⏰ **Durum/Saat:** {item['saat']}\n"
-        f"📊 **Anlık Skor:** {item['skor']}"
+        f"⏰ **Saat:** {item['saat']} (TSİ)\n"
+        f"📊 **Durum/Skor:** {item['skor']}"
     )
     try:
         await context.bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
@@ -67,7 +67,6 @@ async def tara_espn_multi_sport(client):
     anomaliler = []
     spor_sayilari = {}
     
-    # ESPN API Endpoint'leri
     endpoints = {
         "soccer/eng.1": "⚽ FUTBOL",
         "basketball/nba": "🏀 BASKETBOL",
@@ -86,7 +85,6 @@ async def tara_espn_multi_sport(client):
         count = 0
         try:
             res = await client.get(url, headers=headers)
-            print(f"SPOR: {sport_path} | HTTP: {res.status_code}", flush=True)
             
             if res.status_code == 200:
                 data = res.json()
@@ -95,29 +93,44 @@ async def tara_espn_multi_sport(client):
                 toplam_mac += count
 
                 for ev in events:
-                    status_type = ev.get("status", {}).get("type", {}).get("state")
-                    # Sadece canlı (in) oynanan maçları baz alıyoruz
-                    if status_type == "in":
-                        competitions = ev.get("competitions", [{}])[0]
-                        competitors = competitions.get("competitors", [])
-                        
-                        home_team, away_team, home_score, away_score = "Ev Sahibi", "Deplasman", "0", "0"
-                        for comp in competitors:
-                            if comp.get("homeAway") == "home":
-                                home_team = comp.get("team", {}).get("displayName", "Ev Sahibi")
-                                home_score = comp.get("score", "0")
-                            elif comp.get("homeAway") == "away":
-                                away_team = comp.get("team", {}).get("displayName", "Deplasman")
-                                away_score = comp.get("score", "0")
+                    # Maç tarihini alıp Türkiye saatine (UTC+3) çevirelim
+                    date_str = ev.get("date")
+                    match_saat = "Planlanıyor"
+                    if date_str:
+                        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                        dt_tr = dt + timedelta(hours=3)
+                        match_saat = dt_tr.strftime("%H:%M")
 
-                        anomaliler.append({
-                            "kaynak": "ESPN API",
-                            "spor": sport_name,
-                            "ev": home_team,
-                            "dep": away_team,
-                            "saat": "Canlı Oynanıyor",
-                            "skor": f"{home_score} - {away_score}"
-                        })
+                    status_type = ev.get("status", {}).get("type", {}).get("state")
+                    
+                    competitions = ev.get("competitions", [{}])[0]
+                    competitors = competitions.get("competitors", [])
+                    
+                    home_team, away_team, home_score, away_score = "Ev Sahibi", "Deplasman", "0", "0"
+                    for comp in competitors:
+                        if comp.get("homeAway") == "home":
+                            home_team = comp.get("team", {}).get("displayName", "Ev Sahibi")
+                            home_score = comp.get("score", "0")
+                        elif comp.get("homeAway") == "away":
+                            away_team = comp.get("team", {}).get("displayName", "Deplasman")
+                            away_score = comp.get("score", "0")
+
+                    durum_metni = "Başlamadı"
+                    if status_type == "in":
+                        durum_metni = f"🔴 CANLI ({home_score} - {away_score})"
+                    elif status_type == "post":
+                        durum_metni = f"🏁 Bitti ({home_score} - {away_score})"
+                    else:
+                        durum_metni = "⏳ Başlayacak"
+
+                    anomaliler.append({
+                        "kaynak": "ESPN API",
+                        "spor": sport_name,
+                        "ev": home_team,
+                        "dep": away_team,
+                        "saat": match_saat,
+                        "skor": durum_metni
+                    })
         except Exception as e:
             print(f"ESPN {sport_name} Hatası: {e}")
         
@@ -140,14 +153,14 @@ async def run_scanner_loop(context):
                     await send_telegram_alert(context, item)
 
             rapor_metni = (
-                f"✅ **Tarama Döngüsü Tamamlandı!** ({simdiki_zaman.strftime('%H:%M')})\n\n"
+                f"✅ **Günlük Program Taraması Tamamlandı!** ({simdiki_zaman.strftime('%H:%M')})\n\n"
                 f"📊 **Branşlara Göre Maçlar:**\n"
                 f"• {spor_sayilari.get('⚽ FUTBOL', 0)} Futbol\n"
                 f"• {spor_sayilari.get('🎾 TENİS', 0)} Tenis\n"
                 f"• {spor_sayilari.get('🏀 BASKETBOL', 0)} Basketbol\n"
                 f"• {spor_sayilari.get('🏐 VOLEYBOL', 0)} Voleybol\n\n"
-                f"📈 **Toplam Taranan:** {toplam_mac} müsabaka\n"
-                f"🚨 **Yakalanan Canlı Maç:** {len(espn_anom)} adet"
+                f"📈 **Toplam Fikstür:** {toplam_mac} müsabaka\n"
+                f"📋 **Listelenen Maç:** {len(espn_anom)} adet"
             )
 
             try:
@@ -159,7 +172,7 @@ async def run_scanner_loop(context):
             except Exception:
                 pass
 
-            for _ in range(60):
+            for _ in range(300):  # Fikstür taraması için döngüyü 5 dakikaya çıkardık
                 if not IS_SCANNING:
                     break
                 await asyncio.sleep(1)
@@ -174,5 +187,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("dur", dur_command))
     app.add_handler(CommandHandler("durum", durum_command))
 
-    print("🤖 Çoklu Spor Botu Aktif ve Komut Bekliyor...")
+    print("🤖 Çoklu Spor Botu (Program Modu) Aktif ve Komut Bekliyor...")
     app.run_polling(drop_pending_updates=True)
