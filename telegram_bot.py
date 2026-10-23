@@ -204,5 +204,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("dur", dur_command))
     app.add_handler(CommandHandler("durum", durum_command))
 
-    print("🤖 Bot Aktif (Gelişmiş Başlık Modu) ve Komut Bekliyor...")
-    app.run_polling()
+    print("🤖 Bot Aktif ve Komut Bekliyor...")
+    # Eski bağlantıları zorla koparıp çakışmayı önler:
+    app.run_polling(drop_pending_updates=True)
