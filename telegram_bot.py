@@ -118,11 +118,11 @@ async def tara_espn_multi_sport(client):
 
             for mac in maclar:
                 for mac in maclar:
-    durum = mac.get("fixture", {}).get("status", {}).get("short", "")
+                    durum = mac.get("fixture", {}).get("status", {}).get("short", "")
 
-    if durum not in ("1H", "HT", "2H", "ET", "P", "LIVE",
+                    if durum not in ("1H", "HT", "2H", "ET", "P", "LIVE",
                      "FT", "AET", "PEN"):
-        continue
+                        continue
                 if spor_name == "⚽ FUTBOL":
                     mac_durumu = (
                         mac.get("fixture", {})
