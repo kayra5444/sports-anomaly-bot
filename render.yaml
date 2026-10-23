@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: sports-anomaly-bot
+    env: python
+    buildCommand: "pip install -r requirements.txt && playwright install chromium --with-deps"
+    startCommand: "python telegram_bot.py"
