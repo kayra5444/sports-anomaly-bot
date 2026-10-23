@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import httpx
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -63,7 +63,6 @@ async def send_telegram_alert(context, item):
         pass
 
 
-# Çoklu Spor Taraması ve Detaylı Sayım
 async def tara_sofascore_multi_sport(client, simdiki_zaman):
     anomaliler = []
     spor_sayilari = {}
@@ -125,8 +124,8 @@ async def run_scanner_loop(context):
 
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         while IS_SCANNING:
-            # Türkiye saati (UTC + 3)
-            simdiki_zaman = datetime.utcnow() + timedelta(hours=3)
+            # Güncel ve hatasız Türkiye saati (UTC + 3)
+            simdiki_zaman = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=3)
 
             sofa_anom, toplam_mac, spor_sayilari = await tara_sofascore_multi_sport(client, simdiki_zaman)
 
