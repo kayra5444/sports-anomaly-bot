@@ -89,7 +89,7 @@ async def tara_sofascore_multi_sport(client, simdiki_zaman):
         try:
             res = await client.get(url, headers=headers)
             print(f"SPOR: {sport_slug} | HTTP: {res.status_code}", flush=True)
-            print(f"YANIT: {res.text[:300]}")
+            print(f"YANIT: {res.text[:300]}", flush=True
             if res.status_code == 200:
                 data = res.json()
                 events = data.get("events", [])
