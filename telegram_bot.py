@@ -117,7 +117,12 @@ async def tara_espn_multi_sport(client):
             toplam_mac += count
 
             for mac in maclar:
-                                # Daha önce bitmiş maçları listeleme
+                for mac in maclar:
+    durum = mac.get("fixture", {}).get("status", {}).get("short", "")
+
+    if durum not in ("1H", "HT", "2H", "ET", "P", "LIVE",
+                     "FT", "AET", "PEN"):
+        continue
                 if spor_name == "⚽ FUTBOL":
                     mac_durumu = (
                         mac.get("fixture", {})
